@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Place Autocomplete Address Form</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        height: 500px;
+        width: 500px;
+      }
+    </style>
+    <link type="text/css" rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500">
+    <style>
+      #locationField, #controls {
+        position: relative;
+        width: 480px;
+      }
+      #autocomplete {
+        position: relative;
+        top: 0px;
+        left: 0px;
+        width: 99%;
+      }
+      .label {
+        text-align: right;
+        font-weight: bold;
+        width: 100px;
+        color: #303030;
+      }
+      #address {
+        border: 1px solid #000090;
+        background-color: #f0f0ff;
+        width: 480px;
+        padding-right: 2px;
+      }
+      #address td {
+        font-size: 10pt;
+      }
+      .field {
+        width: 99%;
+      }
+      .slimField {
+        width: 80px;
+      }
+      .wideField {
+        width: 200px;
+      }
+      #locationField {
+        margin-bottom: 2px;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="locationField">
+      <input id="intravel_from_obj" placeholder="Откуда" type="text" /><br>
+      <input id="intravel_where_obj" placeholder="Куда" type="text" /><br>
+    </div>
+    <div id="waypointField">
+    <!--
+        <input id="intravel_waypoint1" class="intravel_waypoints_obj" placeholder="Через #1" type="text" /><br>
+        <input id="intravel_waypoint2" class="intravel_waypoints_obj" placeholder="Через #2" type="text" /><br>
+    -->
+    </div>
+    <div><input type="button" onclick="addField();" value="Add" /></div>
+<div class="hidden">
+    From_H: <input type="text" id="geocode_from_H" name="geocode_from" value="" /><br>
+    From_L: <input type="text" id="geocode_from_L" name="geocode_from" value="" /><br>
+    Where_H: <input type="text" id="geocode_where_H" name="geocode_where" value="" /><br>
+    Where_L: <input type="text" id="geocode_where_L" name="geocode_where" value="" /><br>
+</div>
+    Distance: <input type="text" id="distance" name="distance" value="" readonly/><br>
+    
+    <div id="map"></div>
+
+    <script>
+
+var intravel_from_obj, intravel_where_obj; // google.maps.places.Autocomplete objects
+var intravel_from, intravel_where; // google.maps.places.Autocomplete objects after getPlace()
+var intravel_waypoints_obj = []; // google.maps.places.Autocomplete objects
+var intravel_waypoints = []; // google.maps.places.Autocomplete objects after getPlace()
+
+var map;
+var markers = [];
+var labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+var labelIndex = 0;
+var waypointIndex = 0;
+var directionsDisplay;
+var directionsService;
+var distanceService;
+
+
+
+function initMap() {
+
+  map = new google.maps.Map(document.getElementById('map'), {
+    center: {lat: 48.040859, lng: 37.796212},
+    zoom: 8
+  });
+
+  directionsDisplay = new google.maps.DirectionsRenderer;
+  directionsService = new google.maps.DirectionsService;
+  distanceService = new google.maps.DistanceMatrixService;
+  
+  // Create the autocomplete object, restricting the search to geographical location types.
+  intravel_from_obj = new google.maps.places.Autocomplete(
+      /** @type {!HTMLInputElement} */(document.getElementById('intravel_from_obj')),
+      {types: ['geocode']});
+  intravel_where_obj = new google.maps.places.Autocomplete(
+      /** @type {!HTMLInputElement} */(document.getElementById('intravel_where_obj')),
+      {types: ['geocode']});
+  [].forEach.call(document.getElementsByClassName('intravel_waypoints_obj'), function(entry) {
+      intravel_waypoints_obj.push(new google.maps.places.Autocomplete(
+      /** @type {!HTMLInputElement} */(entry),
+      {types: ['geocode']}));
+  });
+
+  // When the user selects an address from the dropdown, populate the address fields in the form.
+  intravel_from_obj.addListener('place_changed', makeMarkersAndRoute);
+  intravel_where_obj.addListener('place_changed', makeMarkersAndRoute);
+  intravel_waypoints_obj.forEach(function(entry) {
+      entry.addListener('place_changed', makeMarkersAndRoute);
+  });
+  
+}
+
+
+function displayRoute(origin, destination, service, display) {
+
+  service.route({
+    origin: {lat: intravel_from.geometry.location.H, lng: intravel_from.geometry.location.L},
+    destination: {lat: intravel_where.geometry.location.H, lng: intravel_where.geometry.location.L},
+    waypoints: intravel_waypoints,
+    travelMode: google.maps.TravelMode.DRIVING,
+    avoidTolls: true
+  }, function(response, status) {
+    if (status === google.maps.DirectionsStatus.OK) {
+      display.setDirections(response);
+    } else {
+      alert('Could not display directions due to: ' + status);
+    }
+  });
+}
+
+
+function makeMarkersAndRoute() {
+
+  // Get the place details from the autocomplete object.
+  deleteMarkers();
+  intravel_from = '';
+  intravel_where = '';
+  intravel_waypoints = [];
+
+  if(intravel_from_obj.getPlace() && intravel_from_obj.getPlace().name) {
+    intravel_from = intravel_from_obj.getPlace();
+
+    addMarker({lat: intravel_from.geometry.location.H, lng: intravel_from.geometry.location.L});
+    map.setCenter({lat: intravel_from.geometry.location.H, lng: intravel_from.geometry.location.L});
+  }
+
+  intravel_waypoints_obj.forEach(function(entry) {
+  
+    if(entry.getPlace() && entry.getPlace().name) {
+        intravel_waypoints.push({
+          location: {lat: entry.getPlace().geometry.location.H, lng: entry.getPlace().geometry.location.L},
+          stopover: true
+        });
+
+        addMarker({lat: entry.getPlace().geometry.location.H, lng: entry.getPlace().geometry.location.L});
+        map.setCenter({lat: entry.getPlace().geometry.location.H, lng: entry.getPlace().geometry.location.L});
+    }
+
+  });
+
+  if(intravel_where_obj.getPlace() && intravel_where_obj.getPlace().name) {
+    intravel_where = intravel_where_obj.getPlace();
+
+    addMarker({lat: intravel_where.geometry.location.H, lng: intravel_where.geometry.location.L});
+    map.setCenter({lat: intravel_where.geometry.location.H, lng: intravel_where.geometry.location.L});
+  }
+
+  if((intravel_from_obj.getPlace() && intravel_from_obj.getPlace().name) && (intravel_where_obj.getPlace() && intravel_where_obj.getPlace().name)) {
+
+      if(directionsDisplay.getMap() != null) {
+          directionsDisplay.setMap(null);
+      }
+
+      displayRoute({lat: intravel_from.geometry.location.H, lng: intravel_from.geometry.location.L}, {lat: intravel_where.geometry.location.H, lng: intravel_where.geometry.location.L}, directionsService, directionsDisplay)
+      
+      directionsDisplay.setMap(map);
+      directionsDisplay.setOptions({suppressMarkers: true});
+      
+      calculateAndDisplayDistance(distanceService);
+  }
+  else
+  {
+
+      
+      directionsDisplay.setMap(null);
+      directionsDisplay.setOptions({suppressMarkers: true});
+  }
+
+  // Get each component of the address from the place details
+  // and fill the corresponding field on the form.
+  //document.getElementById('geocode_from_H').value = intravel_from.geometry.location.H;
+  //document.getElementById('geocode_from_L').value = intravel_from.geometry.location.L;
+  
+  //addMarker({lat: intravel_from.geometry.location.H, lng: intravel_from.geometry.location.L});
+  
+  //map.setCenter({lat: intravel_from.geometry.location.H, lng: intravel_from.geometry.location.L});
+  
+  //directionsDisplay.setMap(map);
+  
+}
+
+
+// Adds a marker to the map and push to the array.
+function addMarker(location) {
+  var marker = new google.maps.Marker({
+    position: location,
+    label: labels[labelIndex++ % labels.length],
+    animation: google.maps.Animation.DROP,
+    map: map
+  });
+  markers.push(marker);
+}
+
+
+// Deletes all markers in the array by removing references to them.
+function deleteMarkers() {
+  clearMarkers();
+  labelIndex = 0;
+  markers = [];
+}
+
+
+// Removes the markers from the map, but keeps them in the array.
+function clearMarkers() {
+  setMapOnAll(null);
+}
+
+
+// Sets the map on all markers in the array.
+function setMapOnAll(map) {
+  for (var i = 0; i < markers.length; i++) {
+    markers[i].setMap(map);
+  }
+}
+
+
+function calculateAndDisplayDistance(distanceService) {
+
+  distanceService.getDistanceMatrix({
+    origins: [{lat: intravel_from.geometry.location.H, lng: intravel_from.geometry.location.L}],
+    destinations: [{lat: intravel_where.geometry.location.H, lng: intravel_where.geometry.location.L}],
+    travelMode: google.maps.TravelMode.DRIVING,
+    unitSystem: google.maps.UnitSystem.METRIC,
+    avoidHighways: false,
+    avoidTolls: false
+  }, function(response, status) {
+    if (status !== google.maps.DistanceMatrixStatus.OK) {
+      alert('Error was: ' + status);
+    } else {
+      document.getElementById('distance').value = response.rows[0].elements[0].distance.text;
+    }
+  });
+
+}
+
+// [START region_fillform]
+function fillInAddress() {
+  // Get the place details from the autocomplete object.
+  var intravel_from = intravel_from_obj.getPlace();
+  var intravel_where = intravel_where_obj.getPlace();
+
+  for (var component in componentForm) {
+    document.getElementById(component).value = '';
+    document.getElementById(component).disabled = false;
+  }
+
+  // Get each component of the address from the place details
+  // and fill the corresponding field on the form.
+  for (var i = 0; i < intravel_from.address_components.length; i++) {
+    var addressType = intravel_from.address_components[i].types[0];
+    console.log(intravel_from.geometry.location);
+    if (componentForm[addressType]) {
+      var val = intravel_from.address_components[i][componentForm[addressType]];
+      document.getElementById(addressType).value = val;
+    }
+  }
+  
+  for (var i = 0; i < intravel_where.address_components.length; i++) {
+    var addressType = intravel_where.address_components[i].types[0];
+    if (componentForm[addressType]) {
+      var val = intravel_where.address_components[i][componentForm[addressType]];
+      document.getElementById(addressType).value = val;
+    }
+  }
+  
+}
+
+
+function addField() {
+
+  // Container <div> where dynamic content will be placed
+  var container = document.getElementById('locationField');
+
+  waypointIndex++;
+
+  var span = document.createElement('span');
+  span.id = 'span_intravel_waypoint' + waypointIndex;
+  container.appendChild(span);
+
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.name = 'intravel_waypoint' + waypointIndex;
+  input.id = 'intravel_waypoint' + waypointIndex;
+  input.className = 'intravel_waypoints_obj';
+  input.placeholder = 'Промежуточный пункт';
+  span.appendChild(input);
+  // Append a link to delete
+  var a = document.createElement('a');
+  a.href = 'javascript:deleteField("span_intravel_waypoint' + waypointIndex + '")';
+  a.text = 'X';
+  span.appendChild(a);
+  // Append a line break 
+  span.appendChild(document.createElement('br'));
+
+  _intravel_waypoint = new google.maps.places.Autocomplete(
+      /** @type {!HTMLInputElement} */(document.getElementById('intravel_waypoint' + waypointIndex)),
+      {types: ['geocode']});
+  intravel_waypoints_obj.push(_intravel_waypoint);
+  _intravel_waypoint.addListener('place_changed', makeMarkersAndRoute);
+
+}
+
+
+function deleteField(id) {
+
+  // Container <div> where dynamic content will be placed
+  var container = document.getElementById('locationField');
+  var element_id = document.getElementById(id);
+  var elementIdInArray = 0;
+
+  if(element_id.getElementsByTagName('input')[0].value != '')
+  {
+
+    intravel_waypoints_obj.every(function(entry) {
+      // Do something.
+      if(entry.getPlace())
+      {
+        if(entry.getPlace().formatted_address == element_id.getElementsByTagName('input')[0].value) { return false; }
+          else { elementIdInArray++; return true; }
+      }
+    });
+
+    intravel_waypoints_obj.splice(elementIdInArray, 1);
+
+  }
+  container.removeChild(element_id);
+
+  makeMarkersAndRoute();
+
+}
+
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD9JW3B9Nw2iJHjMI1TMXgXcvr7USc1PR4&signed_in=true&libraries=places&callback=initMap"
+        async defer></script>
+  </body>
+</html>

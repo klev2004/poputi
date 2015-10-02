@@ -199,7 +199,7 @@ function makeMarkersAndRoute() {
       directionsDisplay.setMap(map);
       directionsDisplay.setOptions({suppressMarkers: true});
       
-      calculateAndDisplayDistance(distanceService);
+      calculateAndDisplayDistance();
 
   }
   else
@@ -258,7 +258,7 @@ function setMapOnAll(map) {
 }
 
 
-function calculateAndDisplayDistance(distanceService) {
+function calculateAndDisplayDistance() {
 
   var intravel_waypoints = [];
 

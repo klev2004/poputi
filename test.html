@@ -200,13 +200,14 @@ function makeMarkersAndRoute() {
       directionsDisplay.setOptions({suppressMarkers: true});
       
       calculateAndDisplayDistance(distanceService);
+
   }
   else
   {
 
-      
       directionsDisplay.setMap(null);
       directionsDisplay.setOptions({suppressMarkers: true});
+
   }
 
   // Get each component of the address from the place details
@@ -259,18 +260,38 @@ function setMapOnAll(map) {
 
 function calculateAndDisplayDistance(distanceService) {
 
-  distanceService.getDistanceMatrix({
-    origins: [{lat: intravel_from.geometry.location.H, lng: intravel_from.geometry.location.L}],
-    destinations: [{lat: intravel_where.geometry.location.H, lng: intravel_where.geometry.location.L}],
-    travelMode: google.maps.TravelMode.DRIVING,
-    unitSystem: google.maps.UnitSystem.METRIC,
-    avoidHighways: false,
-    avoidTolls: false
-  }, function(response, status) {
-    if (status !== google.maps.DistanceMatrixStatus.OK) {
-      alert('Error was: ' + status);
-    } else {
-      document.getElementById('distance').value = response.rows[0].elements[0].distance.text;
+  var intravel_waypoints = [];
+
+  intravel_waypoints_obj.forEach(function(entry) {
+  
+    if(entry.getPlace() && entry.getPlace().name) {
+        intravel_waypoints.push({
+          location: {lat: entry.getPlace().geometry.location.H, lng: entry.getPlace().geometry.location.L},
+          stopover: true
+        });
+    }
+
+  });
+
+  var request = {
+    origin: {lat: intravel_from.geometry.location.H, lng: intravel_from.geometry.location.L},
+    destination: {lat: intravel_where.geometry.location.H, lng: intravel_where.geometry.location.L},
+    waypoints: intravel_waypoints,
+    optimizeWaypoints: true,
+    travelMode: google.maps.TravelMode.DRIVING
+  };
+
+  directionsService.route(request, function(response, status) {
+    if (status == google.maps.DirectionsStatus.OK) {
+      directionsDisplay.setDirections(response);
+
+      var total_distance = 0.0;
+      for (var i=0; i<response.routes[0].legs.length; i++) {
+        total_distance += response.routes[0].legs[i].distance.value;
+        }
+
+      document.getElementById('distance').value = total_distance / 1000 + ' km';
+
     }
   });
 
@@ -355,7 +376,7 @@ function deleteField(id) {
   {
 
     intravel_waypoints_obj.every(function(entry) {
-      // Do something.
+      // Do something
       if(entry.getPlace())
       {
         if(entry.getPlace().formatted_address == element_id.getElementsByTagName('input')[0].value) { return false; }
